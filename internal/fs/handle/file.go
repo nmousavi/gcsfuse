@@ -17,6 +17,8 @@ package handle
 import (
 	"fmt"
 	"io"
+        "time"
+	"log"
 
 	"github.com/googlecloudplatform/gcsfuse/internal/fs/inode"
 	"github.com/googlecloudplatform/gcsfuse/internal/gcsx"
@@ -86,7 +88,10 @@ func (fh *FileHandle) Read(
 	// Lock the inode and attempt to ensure that we have a reader for its current
 	// state, or clear fh.reader if it's not possible to create one (probably
 	// because the inode is dirty).
+	fh_inode_lock_start := time.Now()
 	fh.inode.Lock()
+	fh_inode_lock_t := time.Now()
+        log.Printf("FileHandle.Read: Waited for fh.inode lock for %s \n", fh_inode_lock_t.Sub(fh_inode_lock_start))
 	err = fh.tryEnsureReader()
 	if err != nil {
 		fh.inode.Unlock()
@@ -100,7 +105,8 @@ func (fh *FileHandle) Read(
 	// if a concurrent write started during or after a read.
 	if fh.reader != nil {
 		fh.inode.Unlock()
-
+		fh_inode_unlock_t := time.Now()
+		log.Printf("FileHandle.Read: Appropiate reader exists. Unlock fh.inode after  %s \n", fh_inode_unlock_t.Sub(fh_inode_lock_t))
 		n, err = fh.reader.ReadAt(ctx, dst, offset)
 		switch {
 		case err == io.EOF:
@@ -118,6 +124,8 @@ func (fh *FileHandle) Read(
 	defer fh.inode.Unlock()
 	n, err = fh.inode.Read(ctx, dst, offset)
 
+	fh_inode_unlock_t := time.Now()
+	log.Printf("FileHandle.Read: No appropiate reader exists, fell through to the inode. Unlock fh.inode after  %s \n", fh_inode_unlock_t.Sub(fh_inode_lock_t))
 	return
 }
 
@@ -146,7 +154,7 @@ func (fh *FileHandle) tryEnsureReader() (err error) {
 			fh.reader.Destroy()
 			fh.reader = nil
 		}
-
+		log.Printf("FileHandle.tryEnsureReader: inode is dirty.\n")
 		return
 	}
 
@@ -154,9 +162,11 @@ func (fh *FileHandle) tryEnsureReader() (err error) {
 	// can use it. Otherwise we must throw it away.
 	if fh.reader != nil {
 		if fh.reader.Object().Generation == fh.inode.SourceGeneration().Object {
+			log.Printf("FileHandle.tryEnsureReader: reader is at appropiate generation, and can be reused. \n")
 			return
 		}
 
+		log.Printf("FileHandle.tryEnsureReader: reader exists but is not at appropiate generation.\n")
 		fh.reader.Destroy()
 		fh.reader = nil
 	}
@@ -165,9 +175,11 @@ func (fh *FileHandle) tryEnsureReader() (err error) {
 	rr, err := gcsx.NewRandomReader(fh.inode.Source(), fh.bucket)
 	if err != nil {
 		err = fmt.Errorf("NewRandomReader: %v", err)
+	        log.Printf("FileHandle.tryEnsureReader: failed to create random reader.\n")
 		return
 	}
 
+	log.Printf("FileHandle.tryEnsureReader: succeed to create random reader.\n")
 	fh.reader = rr
 	return
 }

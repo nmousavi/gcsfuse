@@ -16,6 +16,8 @@ package ratelimit
 
 import (
 	"io"
+	"time"
+	"log"
 
 	"github.com/jacobsa/gcloud/gcs"
 	"golang.org/x/net/context"
@@ -55,7 +57,12 @@ func (b *throttledBucket) NewReader(
 	ctx context.Context,
 	req *gcs.ReadObjectRequest) (rc io.ReadCloser, err error) {
 	// Wait for permission to call through.
+	start := time.Now()
 	err = b.opThrottle.Wait(ctx, 1)
+	end := time.Now()
+	log.Printf("throttledBucket.NewReader: Waited for opThrottle for %s \n",
+	end.Sub(start))
+
 	if err != nil {
 		return
 	}

@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+	"log"
 
 	"github.com/jacobsa/gcloud/httputil"
 	"golang.org/x/net/context"
@@ -82,7 +84,10 @@ func (b *bucket) NewReader(
 	}
 
 	// Call the server.
+	start := time.Now()
 	httpRes, err := b.client.Do(httpReq)
+	end := time.Now()
+	log.Printf("bucket.NewReader. Recieved http response after %s \n", end.Sub(start))
 	if err != nil {
 		return
 	}

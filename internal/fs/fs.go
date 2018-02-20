@@ -1544,11 +1544,17 @@ func (fs *fileSystem) ReadFile(
 	ctx context.Context,
 	op *fuseops.ReadFileOp) (err error) {
 	// Find the handle and lock it.
+	start := time.Now()
 	fs.mu.Lock()
+	t := time.Now()
+	log.Printf("fileSystem.ReadFile: Waited for fs.mu lock for %s\n", t.Sub(start))
 	fh := fs.handles[op.Handle].(*handle.FileHandle)
 	fs.mu.Unlock()
 
+	fh_lock_start := time.Now()
 	fh.Lock()
+	fh_lock_t := time.Now()
+	log.Printf("fileSystem.ReadFile: Waited for fh lock for %s\n", fh_lock_t.Sub(fh_lock_start))
 	defer fh.Unlock()
 
 	// Serve the read.
